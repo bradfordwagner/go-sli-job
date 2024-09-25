@@ -26,7 +26,7 @@ func NewGet(kc kubernetes.Interface) GetInterface {
 	return &get{kc: kc}
 }
 
-// NewGet creates a new GetInterface
+// Get gets the metrics from the configmap
 func (g *get) Get(ctx context.Context, configmapName string, metrics map[string]*PushMetric) (err error) {
 	l := log.Log()
 	configMap, err := g.kc.CoreV1().ConfigMaps("").Get(ctx, configmapName, metav1.GetOptions{})
