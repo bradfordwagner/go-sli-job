@@ -9,6 +9,7 @@ import (
 type Context struct {
 	KubeClient kubernetes.Interface
 	Pusher     PusherInterface
+	Get        GetInterface
 }
 
 // NewContext creates a new context for the SLI package
@@ -20,6 +21,7 @@ func NewContext() (c *Context, err error) {
 
 	return &Context{
 		KubeClient: client,
+		Get:        NewGet(client),
 		Pusher:     NewPusher(),
 	}, nil
 }

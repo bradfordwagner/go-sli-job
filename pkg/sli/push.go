@@ -28,18 +28,18 @@ func (m MetricType) String() string {
 	return string(m)
 }
 
-type Pusher struct {
+type pusher struct {
 	Url string
 }
 
 // enforce interface
-var _ PusherInterface = &Pusher{}
+var _ PusherInterface = &pusher{}
 
-func NewPusher() *Pusher {
-	return &Pusher{}
+func NewPusher() PusherInterface {
+	return &pusher{}
 }
 
-func (p *Pusher) Push(url string, metrics ...PushMetric) error {
+func (p *pusher) Push(url string, metrics map[string]*PushMetric) error {
 	if len(metrics) == 0 {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (p *Pusher) Push(url string, metrics ...PushMetric) error {
 	return nil
 }
 
-func writeMetric(w io.Writer, metric PushMetric) error {
+func writeMetric(w io.Writer, metric *PushMetric) error {
 	// https://github.com/prometheus/docs/blob/main/content/docs/instrumenting/exposition_formats.md#text-format-example
 	if _, err := fmt.Fprintf(w, "# HELP %s %s\n", metric.Name, metric.Description); err != nil {
 		return err
@@ -89,5 +89,5 @@ func writeMetric(w io.Writer, metric PushMetric) error {
 }
 
 type PusherInterface interface {
-	Push(url string, metrics ...PushMetric) error
+	Push(url string, metrics map[string]*PushMetric) error
 }
