@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/bradfordwagner/go-util/log"
 	"io"
 	"net/http"
 )
@@ -58,14 +59,15 @@ type PushOpts struct {
 }
 
 func (p *pusher) Push(ctx context.Context, opts PushOpts) error {
-	if len(opts.Metrics) == 0 {
+	metrics := opts.Metrics
+	if len(metrics) == 0 {
 		return nil
 	}
 
 	client := http.Client{}
 
 	buf := bytes.NewBuffer([]byte{})
-	for _, metric := range opts.Metrics {
+	for _, metric := range metrics {
 		if err := writeMetric(buf, metric); err != nil {
 			return err
 		}
@@ -87,7 +89,18 @@ func (p *pusher) Push(ctx context.Context, opts PushOpts) error {
 	}
 
 	// write to configmap
-	return p.w.Upsert(ctx, opts.Namespace, opts.ConfigmapName, opts.Metrics)
+	l := log.Log()
+	l = l.With("namespace", opts.Namespace, "configmap", opts.ConfigmapName, "url", opts.Url)
+	err = p.w.Upsert(ctx, opts.Namespace, opts.ConfigmapName, metrics)
+	for k, metric := range metrics {
+		l = l.With(k, metric.Value)
+	}
+	if err != nil {
+		l.With("err", err).Error("Failed to write and push metrics")
+	} else {
+		l.Info("Wrote and Pushed metrics")
+	}
+	return err
 }
 
 func writeMetric(w io.Writer, metric *PushMetric) error {
