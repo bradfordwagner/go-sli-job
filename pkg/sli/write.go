@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-type WriteInterface interface {
+type writeInterface interface {
 	// Upsert the metrics to the configmap
 	Upsert(ctx context.Context, namespace, configmapName string, metrics MetricsMap) (err error)
 }
@@ -18,10 +18,10 @@ type write struct {
 }
 
 // enforce interface
-var _ WriteInterface = &write{}
+var _ writeInterface = &write{}
 
-// NewWrite creates a new WriteInterface
-func NewWrite(kc kubernetes.Interface) WriteInterface {
+// newWrite creates a new WriteInterface
+func newWrite(kc kubernetes.Interface) writeInterface {
 	return &write{kc: kc}
 }
 

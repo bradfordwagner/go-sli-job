@@ -10,7 +10,6 @@ type Context struct {
 	KubeClient kubernetes.Interface
 	Pusher     PusherInterface
 	Get        GetInterface
-	Write      WriteInterface
 }
 
 // NewContext creates a new context for the SLI package
@@ -20,10 +19,10 @@ func NewContext() (c *Context, err error) {
 		return
 	}
 
+	write := newWrite(client)
 	return &Context{
 		KubeClient: client,
 		Get:        NewGet(client),
-		Write:      NewWrite(client),
-		Pusher:     NewPusher(),
+		Pusher:     NewPusher(write),
 	}, nil
 }

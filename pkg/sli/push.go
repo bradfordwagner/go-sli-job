@@ -2,6 +2,7 @@ package sli
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,10 @@ type PushMetric struct {
 	ExtraLabels string
 }
 
+func (p *PushMetric) String() string {
+	return fmt.Sprintf("%s=%f", p.Name, p.Value)
+}
+
 type MetricType string
 
 const (
@@ -29,31 +34,44 @@ func (m MetricType) String() string {
 }
 
 type pusher struct {
-	Url string
+	w writeInterface
+}
+
+type PusherInterface interface {
+	Push(ctx context.Context, opts PushOpts) error
 }
 
 // enforce interface
 var _ PusherInterface = &pusher{}
 
-func NewPusher() PusherInterface {
-	return &pusher{}
+func NewPusher(write writeInterface) PusherInterface {
+	return &pusher{
+		w: write,
+	}
 }
 
-func (p *pusher) Push(url string, metrics map[string]*PushMetric) error {
-	if len(metrics) == 0 {
+type PushOpts struct {
+	Url           string
+	Namespace     string
+	ConfigmapName string
+	Metrics       MetricsMap
+}
+
+func (p *pusher) Push(ctx context.Context, opts PushOpts) error {
+	if len(opts.Metrics) == 0 {
 		return nil
 	}
 
 	client := http.Client{}
 
 	buf := bytes.NewBuffer([]byte{})
-	for _, metric := range metrics {
+	for _, metric := range opts.Metrics {
 		if err := writeMetric(buf, metric); err != nil {
 			return err
 		}
 	}
 
-	resp, err := client.Post(url, "text/plain", buf)
+	resp, err := client.Post(opts.Url, "text/plain", buf)
 	if err != nil {
 		return err
 	}
@@ -64,11 +82,12 @@ func (p *pusher) Push(url string, metrics map[string]*PushMetric) error {
 		return fmt.Errorf(
 			"Got %v response when pushing metrics to %v",
 			resp.StatusCode,
-			p.Url,
+			opts.Url,
 		)
 	}
 
-	return nil
+	// write to configmap
+	return p.w.Upsert(ctx, opts.Namespace, opts.ConfigmapName, opts.Metrics)
 }
 
 func writeMetric(w io.Writer, metric *PushMetric) error {
@@ -86,8 +105,4 @@ func writeMetric(w io.Writer, metric *PushMetric) error {
 	}
 
 	return nil
-}
-
-type PusherInterface interface {
-	Push(url string, metrics map[string]*PushMetric) error
 }
