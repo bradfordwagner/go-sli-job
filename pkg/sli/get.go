@@ -6,12 +6,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"strconv"
-	"strings"
 )
 
 type GetInterface interface {
 	// Gets the metrics from the configmap
-	Get(ctx context.Context, configmapName string, metrics map[string]*PushMetric) (err error)
+	Get(ctx context.Context, namespace, configmapName string, metrics MetricsMap)
 }
 
 type get struct {
@@ -27,31 +26,50 @@ func NewGet(kc kubernetes.Interface) GetInterface {
 }
 
 // Get gets the metrics from the configmap
-func (g *get) Get(ctx context.Context, configmapName string, metrics map[string]*PushMetric) (err error) {
-	l := log.Log()
-	configMap, err := g.kc.CoreV1().ConfigMaps("").Get(ctx, configmapName, metav1.GetOptions{})
+func (g *get) Get(ctx context.Context, namespace, configmapName string, metrics MetricsMap) {
+	l := log.Log().With("namespace", namespace, "configmap", configmapName)
+	configMap, err := g.kc.CoreV1().ConfigMaps(namespace).Get(ctx, configmapName, metav1.GetOptions{})
 
-	if strings.Contains(err.Error(), "the server could not find the requested resource") {
-		// configmap does not exist, do not throw an error
-		err = nil
-		l.With("configmap", configmapName).Warn("Configmap does not exist")
-	} else if err != nil {
+	// dne, use provided values
+	if err != nil {
+		l.With("err", err).Warn("Configmap does not exist")
 		return
 	}
 
-	for k, v := range configMap.Data {
-		// convert to float64
+	// note if we add a new metric to the map
+	// it will reset all other metrics
+	var failedParse bool
+	data := configMap.Data
+	updates := make(map[string]float64)
+	for k := range metrics {
+		// when missing reset all metrics to zero
+		// ignore configmap values
+		v, ok := data[k]
+		if !ok {
+			failedParse = true
+			continue
+		}
+
+		// convert to float
+		// if it fails ignore configmap values
 		var f float64
 		f, err = strconv.ParseFloat(v, 64)
 		if err != nil {
-			return
+			l.With("k", k, "v", v, "err", err).Warn("Failed to parse value")
+			failedParse = true
+			continue
 		}
+		updates[k] = f
+	}
 
-		// check configmap field matches metric name
-		metric, ok := metrics[k]
-		if ok {
-			metric.Value = f
+	// on successful parse update metrics
+	if !failedParse {
+		l.Info("Successfully parsed configmap")
+		for k := range updates {
+			metrics[k].Value = updates[k]
 		}
+	} else {
+		l.Warn("Failed to parse configmap, this will likely reset your metrics to nil values")
 	}
 
 	return
