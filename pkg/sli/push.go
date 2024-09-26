@@ -98,7 +98,7 @@ func (p *pusher) Push(ctx context.Context, opts PushOpts) error {
 	if err != nil {
 		l.With("err", err).Error("Failed to write and push metrics")
 	} else {
-		l.Info("Wrote and Pushed metrics")
+		l.Info("Pushed metrics")
 	}
 	return err
 }
