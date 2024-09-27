@@ -56,36 +56,40 @@ type PushOpts struct {
 	Namespace     string
 	ConfigmapName string
 	Metrics       MetricsMap
+	// skips pushing metrics to telegraf
+	SkipTelegraf bool
 }
 
-func (p *pusher) Push(ctx context.Context, opts PushOpts) error {
+func (p *pusher) Push(ctx context.Context, opts PushOpts) (err error) {
 	metrics := opts.Metrics
-	if len(metrics) == 0 {
-		return nil
-	}
+	if !opts.SkipTelegraf {
+		if len(metrics) == 0 {
+			return nil
+		}
 
-	client := http.Client{}
+		client := http.Client{}
 
-	buf := bytes.NewBuffer([]byte{})
-	for _, metric := range metrics {
-		if err := writeMetric(buf, metric); err != nil {
+		buf := bytes.NewBuffer([]byte{})
+		for _, metric := range metrics {
+			if err := writeMetric(buf, metric); err != nil {
+				return err
+			}
+		}
+
+		resp, err := client.Post(opts.Url, "text/plain", buf)
+		if err != nil {
 			return err
 		}
-	}
 
-	resp, err := client.Post(opts.Url, "text/plain", buf)
-	if err != nil {
-		return err
-	}
+		defer resp.Body.Close()
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf(
-			"Got %v response when pushing metrics to %v",
-			resp.StatusCode,
-			opts.Url,
-		)
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			return fmt.Errorf(
+				"Got %v response when pushing metrics to %v",
+				resp.StatusCode,
+				opts.Url,
+			)
+		}
 	}
 
 	// write to configmap
