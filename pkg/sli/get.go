@@ -64,10 +64,11 @@ func (g *get) Get(ctx context.Context, namespace, configmapName string, metrics 
 
 	// on successful parse update metrics
 	if !failedParse {
-		l.Info("Successfully parsed configmap")
 		for k := range updates {
+			l = l.With(k, updates[k])
 			metrics[k].Value = updates[k]
 		}
+		l.Info("Loaded Metrics")
 	} else {
 		l.Warn("Failed to parse configmap, this will likely reset your metrics to nil values")
 	}
