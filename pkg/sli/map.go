@@ -2,6 +2,7 @@ package sli
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -34,4 +35,21 @@ func (m MetricsMap) ExtractFromConfigmapData(data map[string]string) (err error)
 		m[k].Value = f
 	}
 	return
+}
+
+// Sanitize resets all values to zero if any of the values are +/- inf or NaN
+func (m MetricsMap) Sanitize() {
+	var sanitizeAll bool
+	for _, v := range m {
+		if math.IsInf(v.Value, 0) {
+			sanitizeAll = true
+			break
+		}
+	}
+
+	if sanitizeAll {
+		for k := range m {
+			m[k].Value = 0
+		}
+	}
 }

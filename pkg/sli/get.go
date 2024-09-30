@@ -30,6 +30,9 @@ func (g *get) Get(ctx context.Context, namespace, configmapName string, metrics 
 	l := log.Log().With("namespace", namespace, "configmap", configmapName)
 	configMap, err := g.kc.CoreV1().ConfigMaps(namespace).Get(ctx, configmapName, metav1.GetOptions{})
 
+	// force sanitization
+	metrics.Sanitize()
+
 	// dne, use provided values
 	if err != nil {
 		l.With("err", err).Warn("Configmap does not exist")
@@ -47,7 +50,7 @@ func (g *get) Get(ctx context.Context, namespace, configmapName string, metrics 
 		v, ok := data[k]
 		if !ok {
 			failedParse = true
-			continue
+			break
 		}
 
 		// convert to float
@@ -57,7 +60,7 @@ func (g *get) Get(ctx context.Context, namespace, configmapName string, metrics 
 		if err != nil {
 			l.With("k", k, "v", v, "err", err).Warn("Failed to parse value")
 			failedParse = true
-			continue
+			break
 		}
 		updates[k] = f
 	}
@@ -70,7 +73,7 @@ func (g *get) Get(ctx context.Context, namespace, configmapName string, metrics 
 		}
 		l.Info("Loaded Metrics")
 	} else {
-		l.Warn("Failed to parse configmap, this will likely reset your metrics to nil values")
+		l.Warn("Failed to parse configmap")
 	}
 
 	return

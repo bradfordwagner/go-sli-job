@@ -32,6 +32,8 @@ func (w *write) Upsert(ctx context.Context, namespace, configmapName string, met
 	existingConfigMap, err := w.kc.CoreV1().ConfigMaps(namespace).Get(ctx, configmapName, metav1.GetOptions{})
 	create := err != nil
 
+	metrics.Sanitize()
+
 	if create {
 		l.Debug("creating")
 		_, err = w.kc.CoreV1().ConfigMaps(namespace).Create(ctx, &v1.ConfigMap{
