@@ -61,14 +61,27 @@ type PushOpts struct {
 }
 
 func (p *pusher) Push(ctx context.Context, opts PushOpts) (err error) {
-	metrics := opts.Metrics
+	l, metrics := log.Log(), opts.Metrics
+	// write to configmap
+	l = l.With("namespace", opts.Namespace, "configmap", opts.ConfigmapName, "url", opts.Url)
+	err = p.w.Upsert(ctx, opts.Namespace, opts.ConfigmapName, metrics)
+	for k, metric := range metrics {
+		l = l.With(k, metric.Value)
+	}
+	if err != nil {
+		l.With("err", err).Error("Failed to write metrics to configmap")
+		return
+	} else {
+		l.Info("Pushed metrics to configmap")
+	}
+
+	// push to telegraf
 	if !opts.SkipTelegraf {
 		if len(metrics) == 0 {
 			return nil
 		}
 
 		client := http.Client{}
-
 		buf := bytes.NewBuffer([]byte{})
 		for _, metric := range metrics {
 			if err := writeMetric(buf, metric); err != nil {
@@ -80,30 +93,17 @@ func (p *pusher) Push(ctx context.Context, opts PushOpts) (err error) {
 		if err != nil {
 			return err
 		}
-
 		defer resp.Body.Close()
 
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			return fmt.Errorf(
-				"Got %v response when pushing metrics to %v",
+				"got %v response when pushing metrics to %v",
 				resp.StatusCode,
 				opts.Url,
 			)
 		}
 	}
 
-	// write to configmap
-	l := log.Log()
-	l = l.With("namespace", opts.Namespace, "configmap", opts.ConfigmapName, "url", opts.Url)
-	err = p.w.Upsert(ctx, opts.Namespace, opts.ConfigmapName, metrics)
-	for k, metric := range metrics {
-		l = l.With(k, metric.Value)
-	}
-	if err != nil {
-		l.With("err", err).Error("Failed to write and push metrics")
-	} else {
-		l.Info("Pushed metrics")
-	}
 	return err
 }
 
