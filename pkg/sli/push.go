@@ -102,6 +102,9 @@ func (p *pusher) Push(ctx context.Context, opts PushOpts) (err error) {
 				opts.Url,
 			)
 		}
+		l.Infof("Successfully pushed metrics to telegraf")
+	} else {
+		l.Info("Skipping telegraf push")
 	}
 
 	return err
